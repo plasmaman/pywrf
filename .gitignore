@@ -1,4 +1,6 @@
 
+*.pyc
+
 templates/namelist.input
 
 templates/namelist.wps
