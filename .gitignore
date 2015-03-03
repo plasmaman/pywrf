@@ -1,6 +1,6 @@
 
 *.pyc
-
+config.py
 templates/namelist.input
 
 templates/namelist.wps

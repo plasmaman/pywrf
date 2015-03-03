@@ -47,17 +47,6 @@ class WrfBase(object):
 			val = self.get('anatime').strftime('%Y%m%d%H')
 		elif key == 'basedatadir':
 			val = '/work/shared/bjerknes/kolstad/data'
-		elif key == 'datadir':
-			if self.get('datasource') == 'erai':
-				return '%s/%s/%s'%(
-					self.get('basedatadir'), 
-					self.get('datasource'), 
-					self.get('anatime').strftime('%Y/%m%d/%H')
-				)
-			return '%s/%s'%(
-				self.get('basedatadir'), 
-				self.get('datasource')
-			)
 
 		if val is None:
 			sys.exit("Invalid key: %s..." %key)
@@ -277,9 +266,15 @@ class WrfJob(WrfBase):
 				filenames = []
 				while dt <= last:
 					if datasource == 'fnl':
-						filenames.append('fnl_%s' %dt.strftime('%Y%m%d_%H_%M'))
+						filenames.append('%s/%s%fnl_%s' %(
+							self.get('basedatadir'), 
+							datasource,
+							dt.strftime('%Y%m%d_%H_%M')
+						))
 					elif datasource == 'gfs':
-						filenames.append('gfs.t%sz.pgrb2f%02d' %(
+						filenames.append('%s/%s/gfs.t%sz.pgrb2f%02d' %(
+							self.get('basedatadir'), 
+							datasource,
 							at.strftime('%H'),
 							int(tdhours(dt-at))
 						))
@@ -288,28 +283,34 @@ class WrfJob(WrfBase):
 						#	int(tdhours(dt-at))
 						#)
 					elif datasource == 'erai':
-						filenames.append('erai_%s_%02d.grb'%(
-							at.strftime('%Y%m%d%H'),
-							int(tdhours(dt-at))
+						diff = dt.hour % 12
+						anatime = dt - timedelta(hours = diff)
+						filenames.append('%s/%s/%s/erai_%s_%02d.grb'%(
+							self.get('basedatadir'), 
+							datasource, 
+							anatime.strftime('%Y/%m%d/%H'),
+							anatime.strftime('%Y%m%d%H'),
+							diff
 						))
 					dt += td
 				for fn in filenames:
-					path = '%s/%s' %(self.get('datadir'), fn)
+					filename = os.path.basename(fn)
+					#path = '%s/%s' %(self.get('datadir'), fn)
 					# Try to use CDO to strip the grid.
 					# Not supported for GFS files, it seems.
-					try:
-						sys.exit('Selection of bounding box not supported for GFS files')
-						box = self.get('lonlatbox')
-						self.log('Using CDO on %s...' %fn)
-						cmds.append('cp %s %s/%s_orig' %(path, targetdir, fn))
-						cmds.append('cdo sellonlatbox,%s %s/%s_orig %s/%s'%(
-							','.join(['%s'%s for s in box]),
-							targetdir, fn,
-							targetdir, fn,
-						))
-					except:
-						self.log('Linking to %s...' %fn)
-						cmds.append('ln -sf %s %s/%s' %(path, targetdir, fn))
+					#try:
+						#sys.exit('Selection of bounding box not supported for GFS files')
+						#box = self.get('lonlatbox')
+						#self.log('Using CDO on %s...' %fn)
+						#cmds.append('cp %s %s/%s_orig' %(fn, targetdir, fn))
+						#cmds.append('cdo sellonlatbox,%s %s/%s_orig %s/%s'%(
+						#	','.join(['%s'%s for s in box]),
+						#	targetdir, fn,
+						#	targetdir, fn,
+						#))
+					#except:
+					self.log('Linking to %s...' %filename)
+					cmds.append('ln -sf %s %s/%s' %(fn, targetdir, filename))
 				cmds.append('rm -rf %s/*_orig' %targetdir)
 				# Link to data files:
 				cmds.append('csh ./link_grib.csh %s/*' %targetdir)
