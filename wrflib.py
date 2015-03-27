@@ -30,10 +30,21 @@ class WrfBase(object):
 				self.get('config'),
 				self.get('anatime_fmt')
 			)
+		elif key == 'post_output_dir':
+			val = '%s/%s/%s/%s' %(
+				self.get('gribfilebasedir'),
+				self.get('expid'), 
+				self.get('config'),
+				self.get('anatime_fmt')
+			)
+		elif key == 'post_prefix':
+			val = '%s/WRFPRS_' %self.get('post_output_dir')
 		elif key == 'rundir':
 			val = '%s/run' %self.get('workdir')
 		elif key == 'wpsdir':
 			val = '%s/WPS' %self.get('workdir')
+		elif key == 'unipost_home':
+			val = '/work/apps/upp/%s-pgi' %self.get('upp_version')
 		elif key == 'wrfpath':
 			val = '/work/apps/WRF/%s-cray' %self.get('wrf_version')
 		elif key == 'wpspath':
@@ -50,6 +61,14 @@ class WrfBase(object):
 			val = '/work/shared/bjerknes/kolstad/data'
 		elif key == 'update_anatime':
 			val = True
+		elif key == 'post_first':
+			val = '00'
+		elif key == 'post_last':
+			val = '%02d'%int(self.get('duration_h'))
+		elif key == 'post_interval':
+			val = '01'
+		elif key == 'post_domains':
+			val = ' '.join(['d%02d'%j for j in range(1,int(self.get('max_dom'))+1)])
 
 		if val is None:
 			sys.exit("Invalid key: %s..." %key)
@@ -151,6 +170,16 @@ class WrfJob(WrfBase):
 		'run_hours',
 		'interval_seconds',
 		'geog_data_path',
+		'unipost_home',
+		'wrfout_dir',
+		'wrfpath',
+		'post_first',
+		'post_last',
+		'post_interval',
+		'post_domains',
+		'postdir',
+		'startdate',
+		'post_prefix',
 	)
 
 	FMT = {
@@ -185,6 +214,7 @@ class WrfJob(WrfBase):
 
 		wps = ('ungrib' in stages or 'geogrid' in stages or 'metgrid' in stages)
 		run = ('real' in stages or 'wrf' in stages)
+		post = ('post' in stages)
 
 		# Make the directory on /work
 		wd = self.get('workdir')
@@ -200,34 +230,51 @@ class WrfJob(WrfBase):
 		]
 		cmds.append('echo "Time started:"')
 		cmds.append('date')
+		
+		# anatime is always needed
+		at = self.get('anatime')
+
+		wpsdir = '%s/WPS' %wd
+		rundir = '%s/run/' %wd
+		postdir = '%s/upp' %wd
 
 		# Create a dictionary used for the namelists:
 		d = dict()
-		# Copy required keys:
-		for k in ('max_dom','geog_data_path',):
-			d[k] = self.get(k)
-		# Set times:
-		at = self.get('anatime')
-		d['start_year'] = at.year
-		d['start_month'] = at.month
-		d['start_day'] = at.day
-		d['start_hour'] = at.hour
-		d['run_days'] = self.get('duration').days
-		d['run_hours'] = int(self.get('duration').seconds/3600)
-		last = at + self.get('duration')
-		d['end_year'] = last.year
-		d['end_month'] = last.month
-		d['end_day'] = last.day
-		d['end_hour'] = last.hour
-		# For namelist.wps:
-		d['start_date'] = at.strftime('%Y-%m-%d_%H:%M:%S')
-		d['end_date'] = last.strftime('%Y-%m-%d_%H:%M:%S')
-		d['interval_seconds'] = self.get('interval_h')*3600
+		if wps or run:
+			for k in ('max_dom','geog_data_path',):
+				d[k] = self.get(k)
+			# Set times:
+			d['start_year'] = at.year
+			d['start_month'] = at.month
+			d['start_day'] = at.day
+			d['start_hour'] = at.hour
+			d['run_days'] = self.get('duration').days
+			d['run_hours'] = int(self.get('duration').seconds/3600)
+			last = at + self.get('duration')
+			d['end_year'] = last.year
+			d['end_month'] = last.month
+			d['end_day'] = last.day
+			d['end_hour'] = last.hour
+			# For namelist.wps:
+			d['start_date'] = at.strftime('%Y-%m-%d_%H:%M:%S')
+			d['end_date'] = last.strftime('%Y-%m-%d_%H:%M:%S')
+			d['interval_seconds'] = self.get('interval_h')*3600
+		if post:
+			for k in (
+				'post_prefix',
+				'unipost_home',
+				'wrfpath',
+				'post_first',
+				'post_last',
+				'post_interval',
+				'post_domains',
+			):
+				d[k] = self.get(k)
+			d['postdir'] = postdir
+			d['wrfout_dir'] = rundir
+			d['startdate'] = at.strftime('%Y%m%d%H')
 		#print d
 			
-		wpsdir = '%s/WPS' %wd
-		rundir = '%s/run/' %wd
-
 		# Do the WPS part first:
 		if wps:
 			
@@ -360,6 +407,37 @@ class WrfJob(WrfBase):
 
 			if 'wrf' in stages:
 				cmds.append('aprun -B wrf.exe')
+		
+		# Now run upp:
+		if post:
+
+			# Load the WRF module:
+			cmds.append('module load upp/%s' %self.get('upp_version'))
+
+			# Our working directory:
+			#os.system('rm -rf %s' %(rundir))
+			if not os.path.exists(postdir):
+				os.system('mkdir %s' %(postdir))
+			cmds.append('cd %s' %postdir)
+			
+			# Write to script file:
+			self.log('Creating upp script...')
+			self.sub(targetfile = '%s/run_unipost' %postdir, fn = 'run_unipost', d = d)
+			
+			# Copy these if they exist?
+			files_to_copy = {
+				'wrf_cntrl.parm': 'wrf_cntrl.parm',
+				'postcntrl.xml': 'postcntrl.xml'
+			}
+			for k,v in files_to_copy.items():
+				fn2 = '%s/files/%s' %(self.get('scriptdir'), k)
+				if os.path.exists(fn2):
+					self.log('Copying %s...' %fn2)
+					cmds.append('cp %s %s/%s' %(fn2, postdir, v))
+			
+			# Make output directory
+			cmds.append('mkdir -p %s' %self.get('post_output_dir'))
+			cmds.append('ksh run_unipost')
 
 		cmds.append('echo "Time stopped:"')
 		cmds.append('date')
