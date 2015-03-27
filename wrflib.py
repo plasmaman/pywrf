@@ -23,6 +23,7 @@ class WrfBase(object):
 			return self.props[key]
 		except:
 			val = None
+		# These are default values:
 		if key == 'workdir':
 			val = '/work/kolstad/wrf/%s/%s/%s' %(
 				self.get('expid'), 
@@ -47,6 +48,8 @@ class WrfBase(object):
 			val = self.get('anatime').strftime('%Y%m%d%H')
 		elif key == 'basedatadir':
 			val = '/work/shared/bjerknes/kolstad/data'
+		elif key == 'update_anatime':
+			val = True
 
 		if val is None:
 			sys.exit("Invalid key: %s..." %key)
@@ -283,8 +286,12 @@ class WrfJob(WrfBase):
 						#	int(tdhours(dt-at))
 						#)
 					elif datasource == 'erai':
-						diff = dt.hour % 12
-						anatime = dt - timedelta(hours = diff)
+						if self.get('update_anatime'):
+							diff = dt.hour % 12
+							anatime = dt - timedelta(hours = diff)
+						else:
+							anatime = at
+							diff = int(tdhours(dt-anatime))
 						filenames.append('%s/%s/%s/erai_%s_%02d.grb'%(
 							self.get('basedatadir'), 
 							datasource, 
