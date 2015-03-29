@@ -62,13 +62,14 @@ class WrfBase(object):
 		elif key == 'update_anatime':
 			val = True
 		elif key == 'post_first':
-			val = '00'
+			val = 0
 		elif key == 'post_last':
-			val = '%02d'%int(self.get('duration_h'))
+			val = int(self.get('duration_h'))
 		elif key == 'post_interval':
-			val = '01'
+			val = 1
 		elif key == 'post_domains':
-			val = ' '.join(['d%02d'%j for j in range(1,int(self.get('max_dom'))+1)])
+			#val = ' '.join(['d%02d'%j for j in range(1,int(self.get('max_dom'))+1)])
+			val = ['d%02d'%j for j in range(1,int(self.get('max_dom'))+1)]
 
 		if val is None:
 			sys.exit("Invalid key: %s..." %key)
@@ -173,13 +174,14 @@ class WrfJob(WrfBase):
 		'unipost_home',
 		'wrfout_dir',
 		'wrfpath',
-		'post_first',
-		'post_last',
-		'post_interval',
-		'post_domains',
 		'postdir',
+		'wrfout_filename',
+		'time_suffix',
+		'grib_filename',
+		'wrf_parm_filename',
+		'fhr',
 		'startdate',
-		'post_prefix',
+		'domain',
 	)
 
 	FMT = {
@@ -235,7 +237,7 @@ class WrfJob(WrfBase):
 		at = self.get('anatime')
 
 		wpsdir = '%s/WPS' %wd
-		rundir = '%s/run/' %wd
+		rundir = '%s/run' %wd
 		postdir = '%s/upp' %wd
 
 		# Create a dictionary used for the namelists:
@@ -259,20 +261,6 @@ class WrfJob(WrfBase):
 			d['start_date'] = at.strftime('%Y-%m-%d_%H:%M:%S')
 			d['end_date'] = last.strftime('%Y-%m-%d_%H:%M:%S')
 			d['interval_seconds'] = self.get('interval_h')*3600
-		if post:
-			for k in (
-				'post_prefix',
-				'unipost_home',
-				'wrfpath',
-				'post_first',
-				'post_last',
-				'post_interval',
-				'post_domains',
-			):
-				d[k] = self.get(k)
-			d['postdir'] = postdir
-			d['wrfout_dir'] = rundir
-			d['startdate'] = at.strftime('%Y%m%d%H')
 		#print d
 			
 		# Do the WPS part first:
@@ -398,7 +386,11 @@ class WrfJob(WrfBase):
 				os.system('cp -r %s/run/ %s' %(self.get('wrftmpdir'), rundir))
 			cmds.append('cd %s' %rundir)
 			self.log('Creating namelist.input...')
-			self.sub(targetfile = '%s/namelist.input' %rundir, fn = 'namelist.input', d = d)
+			self.sub(
+				targetfile = '%s/namelist.input' %rundir, 
+				fn = 'namelist.input', 
+				d = d
+			)
 
 			
 			if 'real' in stages:
@@ -419,26 +411,68 @@ class WrfJob(WrfBase):
 			if not os.path.exists(postdir):
 				os.system('mkdir %s' %(postdir))
 			cmds.append('cd %s' %postdir)
-			
-			# Write to script file:
-			self.log('Creating upp script...')
-			self.sub(targetfile = '%s/run_unipost' %postdir, fn = 'run_unipost', d = d)
-			
-			# Copy these if they exist?
-			files_to_copy = {
-				'wrf_cntrl.parm': 'wrf_cntrl.parm',
-				'postcntrl.xml': 'postcntrl.xml'
-			}
-			for k,v in files_to_copy.items():
-				fn2 = '%s/files/%s' %(self.get('scriptdir'), k)
-				if os.path.exists(fn2):
-					self.log('Copying %s...' %fn2)
-					cmds.append('cp %s %s/%s' %(fn2, postdir, v))
-			
-			# Make output directory
-			cmds.append('mkdir -p %s' %self.get('post_output_dir'))
-			cmds.append('ksh run_unipost')
+			cmds.append('cp %s/files/postcntrl.xml .' %self.get('scriptdir'))
+			outdir = self.get('post_output_dir')
+			cmds.append('mkdir -p %s' %outdir)
 
+			# Common dictionary
+			d['wrfpath'] = self.get('wrfpath')
+			d['postdir'] = postdir
+			d['wrfout_dir'] = rundir
+			d['unipost_home'] = self.get('unipost_home')
+			d['startdate'] = at.strftime('%Y%m%d%H')
+
+			for domain in self.get('post_domains'):
+
+				d['domain'] = domain
+
+				# Fixed fields first:
+				fn = '%s/WRFPRS_%s_fixed.grb' %(outdir, domain)
+				if not os.path.exists(fn):
+					d['wrf_parm_filename'] = '%s/files/wrf_cntrl.parm.fixed'%self.get('scriptdir')
+					d['fhr'] = '00'
+					d['time_suffix'] = at.strftime('%Y-%m-%d_%H:00:00')
+					d['wrfout_filename'] = '%s/wrfout_%s_%s' %(
+						rundir,
+						domain,
+						d['time_suffix']
+					)
+					d['grib_filename'] = fn
+					scriptfile = 'run_unipost_fixed_%s'%domain
+					self.sub(
+						targetfile = '%s/%s' %(postdir, scriptfile), 
+						fn = 'run_unipost', 
+						d = d
+					)
+					cmds.append('ksh %s' %scriptfile)
+
+				# Loop for each forecast hour
+				for fhr in range(
+					self.get('post_first'), 
+					self.get('post_last')+1,
+					self.get('post_interval')
+				):
+					fn = '%s/WRFPRS_%s_%03d.grb' %(outdir, domain, fhr)
+					if not os.path.exists(fn):
+						d['wrf_parm_filename'] = '%s/files/wrf_cntrl.parm'%self.get('scriptdir')
+						d['fhr'] = '%02d'%fhr
+						dt = at + timedelta(hours=fhr)
+						d['time_suffix'] = dt.strftime('%Y-%m-%d_%H:00:00')
+						d['wrfout_filename'] = '%s/wrfout_%s_%s' %(
+							rundir,
+							domain,
+							d['time_suffix']
+						)
+						d['grib_filename'] = fn
+						scriptfile = 'run_unipost_%s_%03d'%(domain, fhr)
+						self.sub(
+							targetfile = '%s/%s' %(postdir, scriptfile), 
+							fn = 'run_unipost', 
+							d = d
+						)
+						cmds.append('ksh %s' %scriptfile)
+
+		#print d
 		cmds.append('echo "Time stopped:"')
 		cmds.append('date')
 
