@@ -65,8 +65,8 @@ class WrfBase(object):
 			val = True
 		elif key == 'post_first':
 			val = 0
-			#if self.get('is_restart_run'):
-			#	val = self.get('restart_fhr')
+			if self.get('is_restart_run'):
+				val = self.get('restart_fhr')
 		elif key == 'post_last':
 			val = int(self.get('duration_h'))
 		elif key == 'post_interval':
@@ -466,12 +466,13 @@ class WrfJob(WrfBase):
 				# Fixed fields first:
 				fn = '%s/WRFPRS_%s_fixed.grb' %(outdir, domain)
 				if not os.path.exists(fn):
-					d['wrfout_filename'] = self.get_wrfout_filename(0, domain)
+					fhr = self.get('post_first')
+					d['wrfout_filename'] = self.get_wrfout_filename(fhr, domain)
 					if os.path.exists(d['wrfout_filename']):
 						#d['wrfout_dir'] = self.get_wrfout_dir(fhr)
-						d['time_suffix'] = self.get_time_suffix(0)
+						d['time_suffix'] = self.get_time_suffix(fhr)
 						d['wrf_parm_filename'] = '%s/files/wrf_cntrl.parm.fixed'%self.get('scriptdir')
-						d['fhr'] = '00'
+						d['fhr'] = '%02d'%fhr
 						d['grib_filename'] = fn
 						scriptfile = 'run_unipost_fixed_%s'%domain
 						self.sub(
