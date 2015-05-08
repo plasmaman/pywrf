@@ -66,7 +66,7 @@ class WrfBase(object):
 		elif key == 'post_first':
 			val = 0
 			if self.get('is_restart_run'):
-				val = self.get('restart_fhr')
+				val = self.get('restart_fhr') + 1
 		elif key == 'post_last':
 			val = int(self.get('duration_h'))
 		elif key == 'post_interval':
@@ -465,9 +465,12 @@ class WrfJob(WrfBase):
 
 				# Fixed fields first:
 				fn = '%s/WRFPRS_%s_fixed.grb' %(outdir, domain)
+				print 'Fixed file:',fn
 				if not os.path.exists(fn):
+					print 'Does not exist...'
 					fhr = self.get('post_first')
 					d['wrfout_filename'] = self.get_wrfout_filename(fhr, domain)
+					print 'Looking for file:',d['wrfout_filename']
 					if os.path.exists(d['wrfout_filename']):
 						#d['wrfout_dir'] = self.get_wrfout_dir(fhr)
 						d['time_suffix'] = self.get_time_suffix(fhr)
@@ -490,7 +493,9 @@ class WrfJob(WrfBase):
 				):
 					print 'fhr:',fhr
 					fn = '%s/WRFPRS_%s_%03d.grb' %(outdir, domain, fhr)
-					if not os.path.exists(fn):
+					if os.path.exists(fn):
+						print 'Ok, file exists:',fn
+					else:
 						d['wrfout_filename'] = self.get_wrfout_filename(fhr, domain)
 						print d['wrfout_filename']
 						if os.path.exists(d['wrfout_filename']):
