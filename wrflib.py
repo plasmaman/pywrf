@@ -421,8 +421,15 @@ class WrfJob(WrfBase):
 			# Link to restart files and boundary files if applicable
 			if self.get('is_restart_run'):
 				src = self.get('restartdir')
-				for pref in ('wrfrst','wrfbdy','wrfinput','wrffdda',):
+				#for pref in ('wrfrst','wrfbdy','wrfinput','wrffdda',):
+				for pref in ('wrfbdy','wrfinput','wrffdda',):
 					cmds.append('ln -sf %s/%s* .'%(src, pref))
+				# Copy just the one restart file:
+				td = timedelta(hours = self.get('restart_fhr'))
+				dt = at + td 
+				# Important to copy this, not link
+				cmds.append('rm -f wrfrst_d*')
+				cmds.append('cp %s/wrfrst_d*_%s* .'%(src, dt.strftime('%Y-%m-%d_%H')))
 			self.log('Creating namelist.input...')
 			self.sub(
 				targetfile = '%s/namelist.input' %rundir, 
