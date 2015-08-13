@@ -37,6 +37,8 @@ class WrfBase(object):
 				self.get('config'),
 				self.get('anatime_fmt')
 			)
+		elif key == 'bdata_file_prefix':
+			val = self.get('datasource')
 		elif key == 'post_prefix':
 			val = '%s/WRFPRS_' %self.get('post_output_dir')
 		elif key == 'rundir':
@@ -48,9 +50,11 @@ class WrfBase(object):
 		elif key == 'unipost_home':
 			val = '/work/apps/upp/%s-pgi' %self.get('upp_version')
 		elif key == 'wrfpath':
-			val = '/work/apps/WRF/%s-cray' %self.get('wrf_version')
+			v = self.get('wrf_version')
+			val = '/work/apps/WRF/%s-%s' %(v, ('cray' if v=='3.5.1' else 'pgi'))
 		elif key == 'wpspath':
-			val = '/work/apps/WPS/%s-cray' %self.get('wrf_version')
+			v = self.get('wrf_version')
+			val = '/work/apps/WPS/%s-%s' %(v, ('cray' if v=='3.5.1' else 'pgi'))
 		elif key == 'wrftmpdir':
 			val = '%s/%s' %(self.get('wrftemplatebasedir'), self.get('wrf_version'))
 		#elif key == 'duration_h':
@@ -360,10 +364,11 @@ class WrfJob(WrfBase):
 						else:
 							anatime = at
 							diff = int(tdhours(dt-anatime))
-						filenames.append('%s/%s/%s/erai_%s_%02d.grb'%(
+						filenames.append('%s/%s/%s/%s_%s_%02d.grb'%(
 							self.get('basedatadir'), 
-							datasource, 
+							datasource,
 							anatime.strftime('%Y/%m%d/%H'),
+							self.get('bdata_file_prefix'), 
 							anatime.strftime('%Y%m%d%H'),
 							diff
 						))
