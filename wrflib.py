@@ -182,7 +182,7 @@ class WrfJob(WrfBase):
 		'interval_seconds',
 		'geog_data_path',
 		'unipost_home',
-		'wrfout_dir',
+		#'wrfout_dir',
 		'wrfpath',
 		'postdir',
 		'wrfout_filename',
@@ -212,10 +212,14 @@ class WrfJob(WrfBase):
 		return dt.strftime('%Y-%m-%d_%H:00:00')
 
 	def get_wrfout_filename(self, fhr, domain):
-		if self.get('is_restart_run') and fhr<=self.get('restart_fhr'):
-			outdir = self.get('restartdir')
-		else:
-			outdir = self.get('rundir')
+		# See if we've specified this first:
+		try:
+			outdir = self.get('wrfout_dir')
+		except:
+			if self.get('is_restart_run') and fhr<=self.get('restart_fhr'):
+				outdir = self.get('restartdir')
+			else:
+				outdir = self.get('rundir')
 		fn = '%s/wrfout_%s_%s' %(
 			outdir,
 			domain,
