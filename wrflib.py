@@ -49,11 +49,13 @@ class WrfBase(object):
 			val = '%s/upp' %self.get('workdir')
 		elif key == 'unipost_home':
 			val = '/work/apps/upp/%s-pgi' %self.get('upp_version')
+		elif key == 'wps_version':
+			val = self.get('wrf_version')
 		elif key == 'wrfpath':
 			v = self.get('wrf_version')
 			val = '/work/apps/WRF/%s-%s' %(v, ('cray' if v=='3.5.1' else 'pgi'))
 		elif key == 'wpspath':
-			v = self.get('wrf_version')
+			v = self.get('wps_version')
 			val = '/work/apps/WPS/%s-%s' %(v, ('cray' if v=='3.5.1' else 'pgi'))
 		elif key == 'wrftmpdir':
 			val = '%s/%s' %(self.get('wrftemplatebasedir'), self.get('wrf_version'))
@@ -308,7 +310,7 @@ class WrfJob(WrfBase):
 		if wps:
 			
 			# Load the WPS module:
-			cmds.append('module load WPS/%s' %self.get('wrf_version'))
+			cmds.append('module load WPS/%s' %self.get('wps_version'))
 
 			# Our working directory:
 			self.log('Copying WPS template dir to: %s...' %wpsdir)
