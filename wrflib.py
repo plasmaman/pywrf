@@ -433,7 +433,7 @@ class WrfJob(WrfBase):
 			if self.get('is_restart_run'):
 				src = self.get('restartdir')
 				#for pref in ('wrfrst','wrfbdy','wrfinput','wrffdda',):
-				for pref in ('wrfbdy','wrfinput','wrffdda',):
+				for pref in ('wrfbdy','wrfinput','wrffdda','wrflowinp',):
 					cmds.append('ln -sf %s/%s* .'%(src, pref))
 				# Copy just the one restart file:
 				td = timedelta(hours = self.get('restart_fhr'))
