@@ -69,6 +69,10 @@ class WrfBase(object):
 			val = '/work/shared/bjerknes/kolstad/data'
 		elif key == 'update_anatime':
 			val = True
+		elif key == 'copy_restart_file':
+			val = True
+		elif key == 'copy_lowinp_files':
+			val = True
 		elif key == 'post_first':
 			val = 0
 			if self.get('is_restart_run'):
@@ -433,14 +437,18 @@ class WrfJob(WrfBase):
 			if self.get('is_restart_run'):
 				src = self.get('restartdir')
 				#for pref in ('wrfrst','wrfbdy','wrfinput','wrffdda',):
-				for pref in ('wrfbdy','wrfinput','wrffdda','wrflowinp',):
+				prefs = ['wrfbdy','wrfinput','wrffdda']
+				if self.get('copy_lowinp_files'):
+					prefs.append('wrflowinp')
+				for pref in prefs:
 					cmds.append('ln -sf %s/%s* .'%(src, pref))
 				# Copy just the one restart file:
 				td = timedelta(hours = self.get('restart_fhr'))
 				dt = at + td 
 				# Important to copy this, not link
-				cmds.append('rm -f wrfrst_d*')
-				cmds.append('cp %s/wrfrst_d*_%s* .'%(src, dt.strftime('%Y-%m-%d_%H')))
+				if self.get('copy_restart_file'):
+					cmds.append('rm -f wrfrst_d*')
+					cmds.append('cp %s/wrfrst_d*_%s* .'%(src, dt.strftime('%Y-%m-%d_%H')))
 			self.log('Creating namelist.input...')
 			self.sub(
 				targetfile = '%s/namelist.input' %rundir, 
