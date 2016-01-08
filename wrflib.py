@@ -265,7 +265,9 @@ class WrfJob(WrfBase):
 			
 		# Our list of commands:
 		cmds = [
-			'module load netcdf'	
+			#'module load netcdf'	
+			'module load cray-netcdf',
+			'module swap PrgEnv-cray PrgEnv-pgi'
 		]
 		cmds.append('echo "Time started:"')
 		cmds.append('date')
